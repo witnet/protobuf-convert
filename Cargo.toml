@@ -1,0 +1,18 @@
+[package]
+name = "protobuf-convert"
+version = "0.1.0"
+edition = "2018"
+authors = ["The Exonum Team <exonum@bitfury.com>", "Witnet Foundation <info@witnet.foundation>"]
+license = "Apache-2.0"
+keywords = ["protobuf", "macro"]
+categories = ["development-tools"]
+description = "Helper macros for serialization structs in protobuf."
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = "0.15"
+quote = "0.6"
+proc-macro2 = "0.4"
+
