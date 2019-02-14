@@ -18,7 +18,7 @@ use quote::quote;
 use syn::{Attribute, Data, DeriveInput, Lit, Path};
 
 use super::{
-    find_word_attribute, get_name_value_attributes, get_types_prefix,
+    find_word_attribute, get_name_value_attributes,
     PB_CONVERT_ATTRIBUTE, SERDE_PB_CONVERT_ATTRIBUTE,
 };
 
@@ -230,7 +230,6 @@ pub fn implement_protobuf_convert(input: TokenStream) -> TokenStream {
 
     let name = input.ident.clone();
     let proto_struct_name = get_protobuf_struct_path(&input.attrs);
-    let cr = get_types_prefix(&input.attrs);
 
     let mod_name = Ident::new(&format!("pb_convert_impl_{}", name), Span::call_site());
 
@@ -257,7 +256,6 @@ pub fn implement_protobuf_convert(input: TokenStream) -> TokenStream {
 
                 use self::_protobuf_crate::Message as _ProtobufMessage;
                 use self::_failure::{bail, Error as _FailureError};
-                use #cr::proto::ProtobufConvert;
 
                 #protobuf_convert
                 #serde_traits
@@ -288,7 +286,6 @@ pub fn implement_protobuf_convert(input: TokenStream) -> TokenStream {
 
                 use self::_protobuf_crate::Message as _ProtobufMessage;
                 use self::_failure::{bail, Error as _FailureError};
-                use #cr::proto::ProtobufConvert;
 
                 #protobuf_convert
                 #serde_traits

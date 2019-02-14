@@ -19,12 +19,10 @@ extern crate proc_macro;
 mod pb_convert;
 
 use proc_macro::TokenStream;
-use quote::quote;
-use syn::{Attribute, Lit, Meta, MetaList, MetaNameValue, NestedMeta, Path};
+use syn::{Attribute, Meta, MetaList, MetaNameValue, NestedMeta};
 
 // Derive attribute names, used as
 // `#[protobuf_convert( [ ATTRIBUTE_NAME = ATTRIBUTE_VALUE or ATTRIBUTE_NAME ],* )]`
-const CRATE_PATH_ATTRIBUTE: &str = "crate";
 const PB_CONVERT_ATTRIBUTE: &str = "pb";
 const SERDE_PB_CONVERT_ATTRIBUTE: &str = "serde_pb_convert";
 
@@ -34,9 +32,6 @@ const SERDE_PB_CONVERT_ATTRIBUTE: &str = "serde_pb_convert";
 ///
 /// * `#[protobuf_convert( pb = "path" )]`
 /// Required. `path` is the name of the corresponding protobuf generated struct.
-///
-/// * `#[protobuf_convert( crate = "path" )]`
-/// Optional. `path` is prefix of the crate (defaults to "crate").
 ///
 /// * `#[protobuf_convert( serde_pb_convert )]`
 /// Optional. Implements `serde::{Serialize, Deserialize}` using structs that were generated with
@@ -62,28 +57,6 @@ const SERDE_PB_CONVERT_ATTRIBUTE: &str = "serde_pb_convert";
 #[proc_macro_derive(ProtobufConvert, attributes(protobuf_convert))]
 pub fn generate_protobuf_convert(input: TokenStream) -> TokenStream {
     pb_convert::implement_protobuf_convert(input)
-}
-
-/// Types should be imported with `crate::` prefix if inside crate
-fn get_types_prefix(attrs: &[Attribute]) -> impl quote::ToTokens {
-    let map_attrs = get_name_value_attributes(attrs);
-    let crate_path = map_attrs.into_iter().find_map(|nv| match &nv {
-        MetaNameValue {
-            lit: Lit::Str(path),
-            ident,
-            ..
-        } if ident == CRATE_PATH_ATTRIBUTE => Some(
-            path.parse::<Path>()
-                .expect("failed to parse crate path in the attribute"),
-        ),
-        _ => None,
-    });
-
-    if let Some(path) = crate_path {
-        quote!(#path)
-    } else {
-        quote!(crate)
-    }
 }
 
 /// Extract attributes in the form of `#[protobuf_convert(name = "value")]`
