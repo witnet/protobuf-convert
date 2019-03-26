@@ -90,6 +90,8 @@ impl ProtobufConvert for u64 {
 
 Now, converting between `Ping` and `schema::Ping` can be done effortlessly.
 
+## `Enum` support
+
 A more complex example, featuring enums:
 
 ```protobuf
@@ -127,6 +129,20 @@ enum Message {
 ```
 
 And it just works!
+
+## Skipping fields
+This macro also supports skipping fields in `struct`s so they are ignored when serializing, i.e they will not be mapped to any field in the schema:
+```rust
+#[derive(ProtobufConvert)]
+#[protobuf_convert(pb = "schema::Ping")]
+struct Ping {
+    pub nonce: u64,
+    #[protobuf_convert(skip)]
+    my_private_field: u64
+}
+```
+
+Note that you can only skip fields whose type implements the `Default` trait.
 
 # See also
 
