@@ -18,8 +18,8 @@ use quote::quote;
 use syn::{Attribute, Data, DeriveInput, Lit, Path};
 
 use super::{
-    find_word_attribute, get_name_value_attributes,
-    PB_CONVERT_ATTRIBUTE, SERDE_PB_CONVERT_ATTRIBUTE,
+    find_word_attribute, get_name_value_attributes, PB_CONVERT_ATTRIBUTE,
+    SERDE_PB_CONVERT_ATTRIBUTE,
 };
 
 fn get_protobuf_struct_path(attrs: &[Attribute]) -> Path {
@@ -38,7 +38,12 @@ fn get_protobuf_struct_path(attrs: &[Attribute]) -> Path {
     struct_path.unwrap_or_else(|| panic!("{} attribute is not set properly.", PB_CONVERT_ATTRIBUTE))
 }
 
-fn get_field_names(input: &DeriveInput) -> Option<Vec<Ident>> {
+enum Action {
+    Convert,
+    Skip,
+}
+
+fn get_field_names(input: &DeriveInput) -> Option<Vec<(Ident, Action)>> {
     let data = match &input.data {
         Data::Struct(x) => Some(x),
         Data::Enum(..) => None,
@@ -47,7 +52,31 @@ fn get_field_names(input: &DeriveInput) -> Option<Vec<Ident>> {
     data.map(|data| {
         data.fields
             .iter()
-            .map(|f| f.ident.clone().unwrap())
+            .map(|f| {
+                let mut action = Action::Convert;
+                for attr in &f.attrs {
+                    match attr.parse_meta() {
+                        Ok(syn::Meta::List(ref meta)) if meta.ident == "protobuf_convert" => {
+                            for nested in &meta.nested {
+                                match nested {
+                                    syn::NestedMeta::Meta(syn::Meta::Word(ident))
+                                        if ident == "skip" =>
+                                    {
+                                        action = Action::Skip;
+                                    }
+                                    _ => {
+                                        panic!("Unknown attribute");
+                                    }
+                                }
+                            }
+                        }
+                        _ => {
+                            // Other attributes are ignored
+                        }
+                    }
+                }
+                (f.ident.clone().unwrap(), action)
+            })
             .collect()
     })
 }
@@ -61,26 +90,47 @@ fn get_field_names_enum(input: &DeriveInput) -> Option<Vec<Ident>> {
     data.map(|data| data.variants.iter().map(|f| f.ident.clone()).collect())
 }
 
-fn implement_protobuf_convert_from_pb(field_names: &[Ident]) -> impl quote::ToTokens {
-    let getters = field_names
+fn implement_protobuf_convert_from_pb(field_names: &[(Ident, Action)]) -> impl quote::ToTokens {
+    let mut to_convert = vec![];
+    let mut to_skip = vec![];
+    for (x, a) in field_names {
+        match a {
+            Action::Convert => to_convert.push(x),
+            Action::Skip => to_skip.push(x),
+        }
+    }
+
+    let getters = to_convert
         .iter()
         .map(|i| Ident::new(&format!("get_{}", i), Span::call_site()));
-    let our_struct_names = field_names.to_vec();
+    let our_struct_names = to_convert.clone();
+    let our_struct_names_skip = to_skip;
 
     quote! {
         fn from_pb(pb: Self::ProtoStruct) -> std::result::Result<Self, _FailureError> {
           Ok(Self {
            #( #our_struct_names: ProtobufConvert::from_pb(pb.#getters().to_owned())?, )*
+           #( #our_struct_names_skip: Default::default(), )*
           })
         }
     }
 }
 
-fn implement_protobuf_convert_to_pb(field_names: &[Ident]) -> impl quote::ToTokens {
+fn implement_protobuf_convert_to_pb(field_names: &[(Ident, Action)]) -> impl quote::ToTokens {
+    let mut to_convert = vec![];
+    let mut to_skip = vec![];
+    for (x, a) in field_names {
+        match a {
+            Action::Convert => to_convert.push(x),
+            Action::Skip => to_skip.push(x),
+        }
+    }
+
     let setters = field_names
         .iter()
-        .map(|i| Ident::new(&format!("set_{}", i), Span::call_site()));
-    let our_struct_names = field_names.to_vec();
+        .map(|i| Ident::new(&format!("set_{}", i.0), Span::call_site()));
+    let our_struct_names = to_convert;
+    let _our_struct_names_skip = to_skip;
 
     quote! {
         fn to_pb(&self) -> Self::ProtoStruct {
@@ -94,7 +144,7 @@ fn implement_protobuf_convert_to_pb(field_names: &[Ident]) -> impl quote::ToToke
 fn implement_protobuf_convert_trait(
     name: &Ident,
     pb_name: &Path,
-    field_names: &[Ident],
+    field_names: &[(Ident, Action)],
 ) -> impl quote::ToTokens {
     let to_pb_fn = implement_protobuf_convert_to_pb(field_names);
     let from_pb_fn = implement_protobuf_convert_from_pb(field_names);
