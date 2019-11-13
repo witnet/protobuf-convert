@@ -1,4 +1,4 @@
-// Copyright 2018 The Exonum Team, 2019 Witnet Foundation
+// Copyright 2019 The Exonum Team, 2019 Witnet Foundation
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,35 +19,95 @@ extern crate proc_macro;
 mod pb_convert;
 
 use proc_macro::TokenStream;
-use syn::{Attribute, Meta, MetaList, MetaNameValue, NestedMeta};
+use syn::{Attribute, NestedMeta};
 
-// Derive attribute names, used as
-// `#[protobuf_convert( [ ATTRIBUTE_NAME = ATTRIBUTE_VALUE or ATTRIBUTE_NAME ],* )]`
-const PB_CONVERT_ATTRIBUTE: &str = "pb";
-const SERDE_PB_CONVERT_ATTRIBUTE: &str = "serde_pb_convert";
+const PB_CONVERT_ATTRIBUTE: &str = "protobuf_convert";
+const PB_CONVERT_SKIP_ATTRIBUTE: &str = "skip";
+const PB_SNAKE_CASE_ATTRIBUTE: &str = "snake_case";
+const DEFAULT_ONEOF_FIELD_NAME: &str = "kind";
 
-/// Derives `ProtobufConvert` trait.
+/// ProtobufConvert derive macro.
 ///
 /// Attributes:
 ///
-/// * `#[protobuf_convert( pb = "path" )]`
-/// Required. `path` is the name of the corresponding protobuf generated struct.
+/// ## Required
 ///
-/// * `#[protobuf_convert( serde_pb_convert )]`
-/// Optional. Implements `serde::{Serialize, Deserialize}` using structs that were generated with
+/// * `#[protobuf_convert(source = "path")]`
+///
+/// ```ignore
+/// #[derive(Clone, Debug, ProtobufConvert)]
+/// #[protobuf_convert(source = "proto::Message")]
+/// pub struct Message {
+///     /// Message author id.
+///     pub author: u32,
+///     /// Message text.
+///     pub text: String,
+/// }
+///
+/// let msg = Message::new();
+/// let serialized_msg = msg.to_pb();
+///
+/// let deserialized_msg = ProtobufConvert::from_pb(serialized_msg).unwrap();
+/// assert_eq!(msg, deserialized_msg);
+/// ```
+///
+/// Corresponding proto file:
+/// ```proto
+/// message Message {
+///     // Message author id..
+///     uint32 author = 1;
+///     // Message text.
+///     string text = 2;
+/// }
+/// ```
+///
+/// This macro can also be applied to enums. In proto files enums are represented
+/// by `oneof` field. You can specify `oneof` field name, default is "kind".
+/// Corresponding proto file must contain only this oneof field. Possible enum
+/// variants are zero-field and one-field variants.
+/// Another enum attribute is `impl_from_trait`. If you specify it then `From` and `TryFrom`
+/// traits for enum variants will be generated. Note that this will not work if enum has
+/// variants with the same field types.
+/// ```ignore
+/// #[derive(Debug, Clone, ProtobufConvert)]
+/// #[protobuf_convert(source = "proto::Message", oneof_field = "message")]
+/// pub enum Message {
+///     /// Plain message.
+///     Plain(String),
+///     /// Encoded message.
+///     Encoded(String),
+/// }
+/// ```
+///
+/// Corresponding proto file:
+/// ```proto
+/// message Message {
+///     oneof message {
+///         // Plain message.
+///         string plain = 1;
+///         // Encoded message.
+///         string encoded = 2;
+///     }
+/// }
+/// ```
+///
+/// Path is the name of the corresponding protobuf generated struct.
+///
+/// * `#[protobuf_convert(source = "path", serde_pb_convert)]`
+///
+/// Implement `serde::{Serialize, Deserialize}` using structs that were generated with
 /// protobuf.
 /// For example, it should be used if you want json representation of your struct
 /// to be compatible with protobuf representation (including proper nesting of fields).
+/// For example, struct with `crypto::Hash` with this
+/// (de)serializer will be represented as
 /// ```text
-/// // For example, struct with `xxx::crypto::Hash` with this
-/// // (de)serializer will be represented as
 /// StructName {
 ///     "hash": {
-///         data: [1, 2, ...]
+///         "data": [1, 2, ...]
 ///     },
 ///     // ...
 /// }
-///
 /// // With default (de)serializer.
 /// StructName {
 ///     "hash": "12af..." // HEX
@@ -59,40 +119,10 @@ pub fn generate_protobuf_convert(input: TokenStream) -> TokenStream {
     pb_convert::implement_protobuf_convert(input)
 }
 
-/// Extract attributes in the form of `#[protobuf_convert(name = "value")]`
-fn get_attributes(attrs: &[Attribute]) -> Vec<Meta> {
-    let meta = attrs.iter().find_map(|attr| {
-        attr.parse_meta()
-            .ok()
-            .filter(|m| m.name() == "protobuf_convert")
-    });
-
-    match meta {
-        Some(Meta::List(MetaList { nested: list, .. })) => list
-            .into_iter()
-            .filter_map(|n| match n {
-                NestedMeta::Meta(meta) => Some(meta),
-                _ => None,
-            })
-            .collect(),
-        Some(_) => panic!("`protobuf_convert` attribute should contain list of name value pairs"),
-        None => vec![],
-    }
-}
-
-fn get_name_value_attributes(attrs: &[Attribute]) -> Vec<MetaNameValue> {
-    get_attributes(attrs)
-        .into_iter()
-        .filter_map(|meta| match meta {
-            Meta::NameValue(name_value) => Some(name_value),
-            _ => None,
-        })
-        .collect()
-}
-
-fn find_word_attribute(attrs: &[Attribute], ident_name: &str) -> bool {
-    get_attributes(attrs).iter().any(|meta| match meta {
-        Meta::Word(ident) if ident == ident_name => true,
-        _ => false,
-    })
+pub(crate) fn find_protobuf_convert_meta(args: &[Attribute]) -> Option<NestedMeta> {
+    args.as_ref()
+        .iter()
+        .filter_map(|a| a.parse_meta().ok())
+        .find(|m| m.path().is_ident(PB_CONVERT_ATTRIBUTE))
+        .map(NestedMeta::from)
 }

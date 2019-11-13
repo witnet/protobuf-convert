@@ -67,7 +67,7 @@ use protobuf_convert::ProtobufConvert;
 use crate::proto::schema;
 
 #[derive(ProtobufConvert)]
-#[protobuf_convert(pb = "schema::Ping")]
+#[protobuf_convert(source = "schema::Ping")]
 struct Ping {
     nonce: u64,
 }
@@ -111,17 +111,17 @@ message Message {
 
 ```rust
 #[derive(ProtobufConvert)]
-#[protobuf_convert(pb = "schema::Ping")]
+#[protobuf_convert(source = "schema::Ping")]
 struct Ping {
     nonce: u64,
 }
 #[derive(ProtobufConvert)]
-#[protobuf_convert(pb = "schema::Pong")]
+#[protobuf_convert(source = "schema::Pong")]
 struct Pong {
     nonce: u64,
 }
 #[derive(ProtobufConvert)]
-#[protobuf_convert(pb = "schema::Message")]
+#[protobuf_convert(source = "schema::Message")]
 enum Message {
     Ping(Ping),
     Pong(Pong),
@@ -130,11 +130,35 @@ enum Message {
 
 And it just works!
 
+You can also generate `From` and `TryFrom` traits for enum variants. Note that this will not work if enum has variants
+with the same field types. To use this feature add `impl_from_trait` attribute.
+```rust
+#[derive(ProtobufConvert)]
+#[protobuf_convert(source = "schema::Message"), impl_from_trait]
+enum Message {
+    Ping(Ping),
+    Pong(Pong),
+}
+```
+`From<Ping>`, `From<Pong>` and also `TryFrom<..>` traits will be generated.
+
+Another attribute that can be used with enum is `rename`. It instructs macro to generate methods with case
+specified in attribute param. 
+```rust
+#[derive(ProtobufConvert)]
+#[protobuf_convert(source = "schema::Message"), rename(case = "snake_case")]
+enum Message {
+    Ping(Ping),
+    Pong(Pong),
+}
+```
+Currently, only snake case is supported.
+
 ## Skipping fields
 This macro also supports skipping fields in `struct`s so they are ignored when serializing, i.e they will not be mapped to any field in the schema:
 ```rust
 #[derive(ProtobufConvert)]
-#[protobuf_convert(pb = "schema::Ping")]
+#[protobuf_convert(source = "schema::Ping")]
 struct Ping {
     pub nonce: u64,
     #[protobuf_convert(skip)]
@@ -147,4 +171,3 @@ Note that you can only skip fields whose type implements the `Default` trait.
 # See also
 
 * [rust-protobuf](https://github.com/stepancheg/rust-protobuf)
-
