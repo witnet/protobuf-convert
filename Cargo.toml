@@ -1,6 +1,6 @@
 [package]
 name = "protobuf-convert"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2018"
 authors = ["The Exonum Team <exonum@bitfury.com>", "Witnet Foundation <info@witnet.foundation>"]
 repository = "https://github.com/witnet/protobuf-convert"
@@ -14,7 +14,7 @@ description = "Macros for convenient serialization of Rust data structures into/
 proc-macro = true
 
 [dependencies]
-darling = "0.10.0"
+darling = "0.10.2"
 heck = "0.3.1"
 syn = "1.0"
 quote = "1.0"
@@ -27,4 +27,4 @@ protobuf = "2.8.1"
 serde = { version = "1.0.102", features = ["derive"] }
 
 [build-dependencies]
-protoc-rust = "2.0"
+protoc-rust = "2.8.1"
