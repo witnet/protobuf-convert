@@ -22,7 +22,6 @@ use proc_macro::TokenStream;
 use syn::{Attribute, NestedMeta};
 
 const PB_CONVERT_ATTRIBUTE: &str = "protobuf_convert";
-const PB_CONVERT_SKIP_ATTRIBUTE: &str = "skip";
 const PB_SNAKE_CASE_ATTRIBUTE: &str = "snake_case";
 const DEFAULT_ONEOF_FIELD_NAME: &str = "kind";
 

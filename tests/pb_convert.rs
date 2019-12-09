@@ -63,6 +63,43 @@ enum EnumMessageWithUpperCaseField {
     Simple(Message),
 }
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+enum CustomId {
+    First = 5,
+    Second = 15,
+    Third = 35,
+}
+
+#[derive(Debug, Clone, ProtobufConvert, Eq, PartialEq)]
+#[protobuf_convert(source = "proto::SimpleMessage")]
+struct CustomMessage {
+    #[protobuf_convert(with = "custom_id_pb_convert")]
+    id: Option<CustomId>,
+    name: String,
+}
+
+mod custom_id_pb_convert {
+    use super::*;
+
+    pub(super) fn from_pb(pb: u32) -> Result<Option<CustomId>, failure::Error> {
+        match pb {
+            0 => Ok(None),
+            5 => Ok(Some(CustomId::First)),
+            15 => Ok(Some(CustomId::Second)),
+            35 => Ok(Some(CustomId::Third)),
+            other => Err(failure::format_err!("Unknown enum discriminant: {}", other)),
+        }
+    }
+
+    #[allow(clippy::trivially_copy_pass_by_ref)]
+    pub(super) fn to_pb(v: &Option<CustomId>) -> u32 {
+        match v {
+            Some(id) => *id as u32,
+            None => 0,
+        }
+    }
+}
+
 #[test]
 fn simple_message_roundtrip() {
     let message = Message {
@@ -86,6 +123,28 @@ fn skip_field_message() {
 
     assert_eq!(message.id, de_message.id);
     assert!(de_message.name.is_empty());
+}
+
+#[test]
+fn custom_message_roundtrip() {
+    let message = CustomMessage {
+        id: None,
+        name: "SimpleMessage".into(),
+    };
+    let pb_message = message.to_pb();
+    let de_message = CustomMessage::from_pb(pb_message).unwrap();
+
+    assert_eq!(message, de_message);
+
+    // Check `from_pb` with the unknown enum discriminant.
+    let message = Message {
+        id: 12,
+        name: "Weird message".into(),
+    };
+    let pb_message = message.to_pb();
+
+    let e = CustomMessage::from_pb(pb_message).unwrap_err();
+    assert_eq!(e.to_string(), "Unknown enum discriminant: 12")
 }
 
 #[test]

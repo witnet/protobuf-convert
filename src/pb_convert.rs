@@ -21,10 +21,7 @@ use syn::{Attribute, Data, DataEnum, DataStruct, DeriveInput, Fields, Path, Type
 
 use std::convert::TryFrom;
 
-use super::{
-    find_protobuf_convert_meta, DEFAULT_ONEOF_FIELD_NAME, PB_CONVERT_ATTRIBUTE,
-    PB_CONVERT_SKIP_ATTRIBUTE, PB_SNAKE_CASE_ATTRIBUTE,
-};
+use super::{find_protobuf_convert_meta, DEFAULT_ONEOF_FIELD_NAME, PB_SNAKE_CASE_ATTRIBUTE};
 
 #[derive(Debug, FromMeta)]
 #[darling(default)]
@@ -87,56 +84,50 @@ impl TryFrom<&[Attribute]> for ProtobufConvertEnumAttrs {
 #[derive(Debug)]
 struct ProtobufConvertStruct {
     name: Ident,
-    fields: Vec<(Ident, Action)>,
+    fields: Vec<(Ident, ProtobufConvertFieldAttrs)>,
     attrs: ProtobufConvertStructAttrs,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-enum Action {
-    Convert,
-    Skip,
+#[derive(Debug, FromMeta)]
+#[darling(default)]
+struct ProtobufConvertFieldAttrs {
+    skip: bool,
+    with: Option<Path>,
 }
 
-fn get_field_names(data: &DataStruct) -> Vec<(Ident, Action)> {
+impl Default for ProtobufConvertFieldAttrs {
+    fn default() -> Self {
+        Self {
+            skip: false,
+            with: None,
+        }
+    }
+}
+
+impl TryFrom<&[Attribute]> for ProtobufConvertFieldAttrs {
+    type Error = darling::Error;
+
+    fn try_from(args: &[Attribute]) -> Result<Self, Self::Error> {
+        find_protobuf_convert_meta(args)
+            .map(|meta| Self::from_nested_meta(&meta))
+            .unwrap_or_else(|| Ok(Self::default()))
+    }
+}
+
+fn get_field_names(
+    data: &DataStruct,
+) -> Result<Vec<(Ident, ProtobufConvertFieldAttrs)>, darling::Error> {
     data.fields
         .iter()
         .map(|f| {
-            let mut action = Action::Convert;
-            for attr in &f.attrs {
-                action = parse_field_meta(&attr);
-                if action == Action::Skip {
-                    break;
-                }
-            }
-            (f.ident.clone().unwrap(), action)
+            let attrs = ProtobufConvertFieldAttrs::try_from(f.attrs.as_ref())?;
+            let ident = f.ident.clone().ok_or_else(|| {
+                darling::Error::unsupported_shape("Struct fields must have an identifier.")
+            })?;
+
+            Ok((ident, attrs))
         })
         .collect()
-}
-
-fn parse_field_meta(attr: &Attribute) -> Action {
-    match attr.parse_meta() {
-        Ok(syn::Meta::List(ref meta)) => {
-            if meta.path.is_ident(PB_CONVERT_ATTRIBUTE) {
-                for nested in &meta.nested {
-                    match nested {
-                        syn::NestedMeta::Meta(meta) => {
-                            if meta.path().is_ident(PB_CONVERT_SKIP_ATTRIBUTE) {
-                                return Action::Skip;
-                            }
-                        }
-                        _ => {
-                            panic!("Unknown attribute");
-                        }
-                    }
-                }
-            }
-        }
-        _ => {
-            // Other attributes are ignored
-        }
-    }
-
-    Action::Convert
 }
 
 impl ProtobufConvertStruct {
@@ -146,7 +137,7 @@ impl ProtobufConvertStruct {
         attrs: &[Attribute],
     ) -> Result<Self, darling::Error> {
         let attrs = ProtobufConvertStructAttrs::try_from(attrs)?;
-        let fields = get_field_names(data);
+        let fields = get_field_names(data)?;
 
         Ok(Self {
             name,
@@ -156,39 +147,68 @@ impl ProtobufConvertStruct {
     }
 }
 
+impl ProtobufConvertFieldAttrs {
+    fn impl_field_setter(&self, ident: &Ident) -> impl ToTokens {
+        let pb_getter = Ident::new(&format!("get_{}", ident), Span::call_site());
+
+        let setter = match (self.skip, &self.with) {
+            // Usual setter without.
+            (false, None) => quote! { ProtobufConvert::from_pb(pb.#pb_getter().to_owned())? },
+            // Setter with the overridden Protobuf conversion.
+            (false, Some(with)) => quote! { #with::from_pb(pb.#pb_getter().to_owned())? },
+            // Default setter for the skipped fields.
+            (true, _) => quote! { Default::default() },
+        };
+
+        quote! { #ident: #setter, }
+    }
+
+    fn impl_field_getter(&self, ident: &Ident) -> impl ToTokens {
+        let pb_setter = Ident::new(&format!("set_{}", ident), Span::call_site());
+
+        match (self.skip, &self.with) {
+            // Usual getter without.
+            (false, None) => quote! {
+                msg.#pb_setter(ProtobufConvert::to_pb(&self.#ident).into());
+            },
+            // Getter with the overridden Protobuf conversion.
+            (false, Some(with)) => quote! {
+                msg.#pb_setter(#with::to_pb(&self.#ident).into());
+            },
+            // Skipped getter does nothing.
+            (true, _) => quote! {},
+        }
+    }
+}
+
 impl ToTokens for ProtobufConvertStruct {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
         let name = &self.name;
         let pb_name = &self.attrs.source;
 
-        let (to_convert, to_skip): (Vec<_>, Vec<_>) =
-            self.fields.iter().partition(|(_, a)| *a == Action::Convert);
-
         let from_pb_impl = {
-            let getters = to_convert
+            let fields = self
+                .fields
                 .iter()
-                .map(|(i, _)| Ident::new(&format!("get_{}", i), Span::call_site()));
-            let fields = self.fields.iter().map(|(i, _)| i).collect::<Vec<_>>();
-
-            let to_skip = to_skip.iter().map(|(i, _)| i).collect::<Vec<_>>();
+                .map(|(ident, attrs)| attrs.impl_field_setter(ident));
 
             quote! {
                 let inner = Self {
-                    #( #fields: ProtobufConvert::from_pb(pb.#getters().to_owned())?, )*
-                    #( #to_skip: Default::default(), )*
+                    #(#fields)*
                 };
                 Ok(inner)
             }
         };
+
         let to_pb_impl = {
-            let setters = to_convert
+            let fields = self
+                .fields
                 .iter()
-                .map(|(i, _)| Ident::new(&format!("set_{}", i), Span::call_site()));
-            let fields = self.fields.iter().map(|(i, _)| i).collect::<Vec<_>>();
+                .map(|(ident, attrs)| attrs.impl_field_getter(ident));
 
             quote! {
                 let mut msg = Self::ProtoStruct::default();
-                #( msg.#setters(ProtobufConvert::to_pb(&self.#fields).into()); )*
+                #(#fields)*
                 msg
             }
         };
