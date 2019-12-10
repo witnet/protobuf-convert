@@ -88,20 +88,11 @@ struct ProtobufConvertStruct {
     attrs: ProtobufConvertStructAttrs,
 }
 
-#[derive(Debug, FromMeta)]
+#[derive(Debug, FromMeta, Default)]
 #[darling(default)]
 struct ProtobufConvertFieldAttrs {
     skip: bool,
     with: Option<Path>,
-}
-
-impl Default for ProtobufConvertFieldAttrs {
-    fn default() -> Self {
-        Self {
-            skip: false,
-            with: None,
-        }
-    }
 }
 
 impl TryFrom<&[Attribute]> for ProtobufConvertFieldAttrs {
@@ -152,7 +143,7 @@ impl ProtobufConvertFieldAttrs {
         let pb_getter = Ident::new(&format!("get_{}", ident), Span::call_site());
 
         let setter = match (self.skip, &self.with) {
-            // Usual setter without.
+            // Usual setter.
             (false, None) => quote! { ProtobufConvert::from_pb(pb.#pb_getter().to_owned())? },
             // Setter with the overridden Protobuf conversion.
             (false, Some(with)) => quote! { #with::from_pb(pb.#pb_getter().to_owned())? },
@@ -167,7 +158,7 @@ impl ProtobufConvertFieldAttrs {
         let pb_setter = Ident::new(&format!("set_{}", ident), Span::call_site());
 
         match (self.skip, &self.with) {
-            // Usual getter without.
+            // Usual getter.
             (false, None) => quote! {
                 msg.#pb_setter(ProtobufConvert::to_pb(&self.#ident).into());
             },
