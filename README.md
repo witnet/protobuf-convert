@@ -171,7 +171,7 @@ Note that you can only skip fields whose type implements the `Default` trait.
 ## Overriding conversion rules
 This macro also supports serde-like attribute `with` for modules with the custom implementation of `from_pb` and `to_pb` conversions.
 
-Protobuf convert will use functions `$module::from_pb` and `$module::to_pb` instead of `ProtobufConvert` trait for the specified field.
+`protobuf-convert` will use functions `$module::from_pb` and `$module::to_pb` instead of `ProtobufConvert` trait for the specified field.
 
 ```rust
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
