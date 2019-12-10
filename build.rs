@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#[cfg(test)]
 use protoc_rust::Customize;
 
 fn main() {
+    #[cfg(test)]
     protoc_rust::run(protoc_rust::Args {
         out_dir: "tests/proto",
         input: &["tests/proto/message.proto"],
