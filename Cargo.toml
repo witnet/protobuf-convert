@@ -1,6 +1,6 @@
 [package]
 name = "protobuf-convert"
-version = "0.2.1"
+version = "0.3.0"
 edition = "2018"
 authors = ["The Exonum Team <exonum@bitfury.com>", "Witnet Foundation <info@witnet.foundation>"]
 repository = "https://github.com/witnet/protobuf-convert"

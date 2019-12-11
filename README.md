@@ -168,6 +168,49 @@ struct Ping {
 
 Note that you can only skip fields whose type implements the `Default` trait.
 
+## Overriding conversion rules
+This macro also supports serde-like attribute `with` for modules with the custom implementation of `from_pb` and `to_pb` conversions.
+
+`protobuf-convert` will use functions `$module::from_pb` and `$module::to_pb` instead of `ProtobufConvert` trait for the specified field.
+
+```rust
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+enum CustomId {
+    First = 5,
+    Second = 15,
+    Third = 35,
+}
+
+#[derive(Debug, Clone, ProtobufConvert, Eq, PartialEq)]
+#[protobuf_convert(source = "proto::SimpleMessage")]
+struct CustomMessage {
+    #[protobuf_convert(with = "custom_id_pb_convert")]
+    id: Option<CustomId>,
+    name: String,
+}
+
+mod custom_id_pb_convert {
+    use super::*;
+
+    pub(super) fn from_pb(pb: u32) -> Result<Option<CustomId>, failure::Error> {
+        match pb {
+            0 => Ok(None),
+            5 => Ok(Some(CustomId::First)),
+            15 => Ok(Some(CustomId::Second)),
+            35 => Ok(Some(CustomId::Third)),
+            other => Err(failure::format_err!("Unknown enum discriminant: {}", other)),
+        }
+    }
+
+    pub(super) fn to_pb(v: &Option<CustomId>) -> u32 {
+        match v {
+            Some(id) => *id as u32,
+            None => 0,
+        }
+    }
+}
+```
+
 # See also
 
 * [rust-protobuf](https://github.com/stepancheg/rust-protobuf)
