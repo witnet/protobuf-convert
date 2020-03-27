@@ -13,7 +13,7 @@ features.
 First, add the dependency in `Cargo.toml`:
 
 ```toml
-protobuf-convert = "0.3.0"
+protobuf-convert = "0.4.0"
 ```
 
 Then, define a `ProtobufConvert` trait:
