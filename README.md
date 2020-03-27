@@ -1,24 +1,26 @@
+# protobuf-convert
+
 Macros for convenient serialization of Rust data structures into/from Protocol Buffers.
 
-# Introduction
+## Introduction
 
 This is a fork of [exonum-derive](https://crates.io/crates/exonum-derive) with
 some changes to allow easier integration with other projects, and some new
 features.
 
-# Usage
+## Usage
 
 First, add the dependency in `Cargo.toml`:
 
-```
-protobuf-convert = "0.3.0"
+```toml
+protobuf-convert = "0.4.0"
 ```
 
 Then, define a `ProtobufConvert` trait:
 
 ```rust
 trait ProtobufConvert {
-    /// Type of the protobuf clone of Self 
+    /// Type of the protobuf clone of Self
     type ProtoStruct;
 
     /// Struct -> ProtoStruct
@@ -79,18 +81,20 @@ see an example implementation for `u64`:
 ```rust
 impl ProtobufConvert for u64 {
     type ProtoStruct = u64;
+
     fn to_pb(&self) -> Self::ProtoStruct {
-	*self
+        *self
     }
+
     fn from_pb(pb: Self::ProtoStruct) -> Result<Self, Error> {
-	Ok(pb)
+        Ok(pb)
     }
 }
 ```
 
 Now, converting between `Ping` and `schema::Ping` can be done effortlessly.
 
-## `Enum` support
+### `Enum` support
 
 A more complex example, featuring enums:
 
@@ -132,6 +136,7 @@ And it just works!
 
 You can also generate `From` and `TryFrom` traits for enum variants. Note that this will not work if enum has variants
 with the same field types. To use this feature add `impl_from_trait` attribute.
+
 ```rust
 #[derive(ProtobufConvert)]
 #[protobuf_convert(source = "schema::Message"), impl_from_trait]
@@ -140,10 +145,12 @@ enum Message {
     Pong(Pong),
 }
 ```
+
 `From<Ping>`, `From<Pong>` and also `TryFrom<..>` traits will be generated.
 
 Another attribute that can be used with enum is `rename`. It instructs macro to generate methods with case
-specified in attribute param. 
+specified in attribute param.
+
 ```rust
 #[derive(ProtobufConvert)]
 #[protobuf_convert(source = "schema::Message"), rename(case = "snake_case")]
@@ -152,10 +159,13 @@ enum Message {
     Pong(Pong),
 }
 ```
+
 Currently, only snake case is supported.
 
-## Skipping fields
+### Skipping fields
+
 This macro also supports skipping fields in `struct`s so they are ignored when serializing, i.e they will not be mapped to any field in the schema:
+
 ```rust
 #[derive(ProtobufConvert)]
 #[protobuf_convert(source = "schema::Ping")]
@@ -168,7 +178,8 @@ struct Ping {
 
 Note that you can only skip fields whose type implements the `Default` trait.
 
-## Overriding conversion rules
+### Overriding conversion rules
+
 This macro also supports serde-like attribute `with` for modules with the custom implementation of `from_pb` and `to_pb` conversions.
 
 `protobuf-convert` will use functions `$module::from_pb` and `$module::to_pb` instead of `ProtobufConvert` trait for the specified field.
@@ -192,13 +203,13 @@ struct CustomMessage {
 mod custom_id_pb_convert {
     use super::*;
 
-    pub(super) fn from_pb(pb: u32) -> Result<Option<CustomId>, failure::Error> {
+    pub(super) fn from_pb(pb: u32) -> Result<Option<CustomId>, anyhow::Error> {
         match pb {
             0 => Ok(None),
             5 => Ok(Some(CustomId::First)),
             15 => Ok(Some(CustomId::Second)),
             35 => Ok(Some(CustomId::Third)),
-            other => Err(failure::format_err!("Unknown enum discriminant: {}", other)),
+            other => Err(anyhow::anyhow!("Unknown enum discriminant: {}", other)),
         }
     }
 
@@ -211,6 +222,6 @@ mod custom_id_pb_convert {
 }
 ```
 
-# See also
+## See also
 
 * [rust-protobuf](https://github.com/stepancheg/rust-protobuf)

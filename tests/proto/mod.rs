@@ -14,7 +14,7 @@
 
 pub use message::*;
 
-use failure::Error;
+use anyhow::Error;
 
 pub mod message;
 
