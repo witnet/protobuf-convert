@@ -208,7 +208,7 @@ impl ToTokens for ProtobufConvertStruct {
             impl ProtobufConvert for #name {
                 type ProtoStruct = #pb_name;
 
-                fn from_pb(pb: Self::ProtoStruct) -> std::result::Result<Self, failure::Error> {
+                fn from_pb(pb: Self::ProtoStruct) -> std::result::Result<Self, anyhow::Error> {
                     #from_pb_impl
                 }
 
@@ -320,7 +320,7 @@ impl ProtobufConvertEnum {
             quote! {
                 match pb.#oneof {
                     #( #match_arms )*
-                    None => Err(failure::format_err!("Failed to decode #name from protobuf"))
+                    None => Err(anyhow::anyhow!("Failed to decode #name from protobuf"))
                 }
             }
         };
@@ -348,7 +348,7 @@ impl ProtobufConvertEnum {
             impl ProtobufConvert for #name {
                 type ProtoStruct = #pb_name;
 
-                fn from_pb(mut pb: Self::ProtoStruct) -> std::result::Result<Self, failure::Error> {
+                fn from_pb(mut pb: Self::ProtoStruct) -> std::result::Result<Self, anyhow::Error> {
                     #from_pb_impl
                 }
 
@@ -376,13 +376,13 @@ impl ProtobufConvertEnum {
                     }
 
                     impl std::convert::TryFrom<#name> for #field_name {
-                        type Error = failure::Error;
+                        type Error = anyhow::Error;
 
                         fn try_from(msg: #name) -> Result<Self, Self::Error> {
                             if let #name::#variant_name(inner) = msg {
                                 Ok(inner)
                             } else {
-                                Err(failure::format_err!(
+                                Err(anyhow::anyhow!(
                                     #variant_err, msg
                                 ))
                             }

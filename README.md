@@ -192,13 +192,13 @@ struct CustomMessage {
 mod custom_id_pb_convert {
     use super::*;
 
-    pub(super) fn from_pb(pb: u32) -> Result<Option<CustomId>, failure::Error> {
+    pub(super) fn from_pb(pb: u32) -> Result<Option<CustomId>, anyhow::Error> {
         match pb {
             0 => Ok(None),
             5 => Ok(Some(CustomId::First)),
             15 => Ok(Some(CustomId::Second)),
             35 => Ok(Some(CustomId::Third)),
-            other => Err(failure::format_err!("Unknown enum discriminant: {}", other)),
+            other => Err(anyhow::anyhow!("Unknown enum discriminant: {}", other)),
         }
     }
 
