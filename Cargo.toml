@@ -16,10 +16,10 @@ proc-macro = true
 [dependencies]
 darling = "0.10.2"
 heck = "0.3.1"
-syn = "1.0"
-quote = "1.0"
 proc-macro2 = "1.0"
+quote = "1.0"
 semver = "0.9"
+syn = "1.0"
 
 [dev-dependencies]
 anyhow = "1.0"
@@ -28,3 +28,4 @@ serde = { version = "1.0", features = ["derive"] }
 
 [build-dependencies]
 protoc-rust = "2.12"
+quote = "1.0"

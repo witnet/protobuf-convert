@@ -13,10 +13,15 @@
 // limitations under the License.
 
 use protoc_rust::Customize;
+use quote::quote;
+
+use std::{fs, io::prelude::*, path::Path};
 
 fn main() {
+    let out_dir = std::env::var("OUT_DIR").expect("Unable to get OUT_DIR");
+
     protoc_rust::run(protoc_rust::Args {
-        out_dir: "tests/proto",
+        out_dir: &out_dir,
         input: &["tests/proto/message.proto"],
         includes: &["tests/proto"],
         customize: Customize {
@@ -24,4 +29,15 @@ fn main() {
         },
     })
     .expect("Couldn't compile proto sources");
+
+    let mod_file_content = quote! {
+        pub use self::message::*;
+
+        mod message;
+    };
+    let mod_file_path = Path::new(&out_dir).join("mod.rs");
+
+    let mut file = fs::File::create(&mod_file_path).expect("Unable to create mod.rs file");
+    file.write_all(&mod_file_content.to_string().as_ref())
+        .expect("Unable to write mod.rs file");
 }
