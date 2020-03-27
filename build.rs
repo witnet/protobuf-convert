@@ -13,7 +13,6 @@
 // limitations under the License.
 
 use protoc_rust::Customize;
-use quote::quote;
 
 use std::{fs, io::prelude::*, path::Path};
 
@@ -30,11 +29,10 @@ fn main() {
     })
     .expect("Couldn't compile proto sources");
 
-    let mod_file_content = quote! {
-        pub use self::message::*;
-
-        mod message;
-    };
+    let mod_file_content = r#"
+        pub use self::message::*; 
+        
+        mod message;"#;
     let mod_file_path = Path::new(&out_dir).join("mod.rs");
 
     let mut file = fs::File::create(&mod_file_path).expect("Unable to create mod.rs file");
