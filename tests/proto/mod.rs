@@ -16,7 +16,9 @@ pub use message::*;
 
 use anyhow::Error;
 
-pub mod message;
+pub mod message {
+    include!(concat!(env!("OUT_DIR"), "/mod.rs"));
+}
 
 pub trait ProtobufConvert: Sized {
     /// Type of the protobuf clone of Self
