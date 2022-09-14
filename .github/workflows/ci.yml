@@ -1,0 +1,70 @@
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+      - develop
+
+name: CI
+
+env:
+  rust: 1.63.0
+
+jobs:
+  tests:
+    name: Unit Tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        build: [ Linux, MacOS, Windows ]
+        include:
+          - build: Linux
+            os: ubuntu-latest
+          - build: MacOS
+            os: macos-latest
+          - build: Windows
+            os: windows-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ env.rust }}
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-targets
+        env:
+          RUST_BACKTRACE: full
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ env.rust }}
+          components: clippy
+          profile: minimal
+          override: true
+      - uses: actions-rs/clippy-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --all-targets --all-features -- -D warnings
+
+  fmt:
+    name: Rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ env.rust }}
+          components: rustfmt
+          profile: minimal
+          override: true
+      - uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check

@@ -45,15 +45,11 @@ rust-protobuf will generate the following struct:
 
 ```rust
 #[derive(PartialEq,Clone,Default)]
-#[cfg_attr(feature = "with-serde", derive(Serialize, Deserialize))]
 pub struct Ping {
     // message fields
     pub nonce: u64,
     // special fields
-    #[cfg_attr(feature = "with-serde", serde(skip))]
-    pub unknown_fields: ::protobuf::UnknownFields,
-    #[cfg_attr(feature = "with-serde", serde(skip))]
-    pub cached_size: ::protobuf::CachedSize,
+    pub special_fields: ::protobuf::SpecialFields,
 }
 ```
 
@@ -164,7 +160,8 @@ Currently, only snake case is supported.
 
 ### Skipping fields
 
-This macro also supports skipping fields in `struct`s so they are ignored when serializing, i.e they will not be mapped to any field in the schema:
+This macro also supports skipping fields in `struct`s so they are ignored when serializing, i.e they will not be mapped
+to any field in the schema:
 
 ```rust
 #[derive(ProtobufConvert)]

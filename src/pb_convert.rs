@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use darling::{FromDeriveInput, FromMeta};
-use heck::SnakeCase;
+use heck::{ToSnakeCase, ToUpperCamelCase};
 use proc_macro::TokenStream;
 use proc_macro2::{Ident, Span};
 use quote::{quote, ToTokens};
@@ -23,20 +23,11 @@ use std::convert::TryFrom;
 
 use super::{find_protobuf_convert_meta, DEFAULT_ONEOF_FIELD_NAME, PB_SNAKE_CASE_ATTRIBUTE};
 
-#[derive(Debug, FromMeta)]
+#[derive(Debug, Default, FromMeta)]
 #[darling(default)]
 struct ProtobufConvertStructAttrs {
     source: Option<Path>,
     serde_pb_convert: bool,
-}
-
-impl Default for ProtobufConvertStructAttrs {
-    fn default() -> Self {
-        Self {
-            source: None,
-            serde_pb_convert: false,
-        }
-    }
 }
 
 impl TryFrom<&[Attribute]> for ProtobufConvertStructAttrs {
@@ -140,7 +131,7 @@ impl ProtobufConvertStruct {
 
 impl ProtobufConvertFieldAttrs {
     fn impl_field_setter(&self, ident: &Ident) -> impl ToTokens {
-        let pb_getter = Ident::new(&format!("get_{}", ident), Span::call_site());
+        let pb_getter = Ident::new(&format!("{}", ident), Span::call_site());
 
         let setter = match (self.skip, &self.with) {
             // Usual setter.
@@ -293,11 +284,12 @@ impl ProtobufConvertEnum {
         let pb_oneof_enum = {
             let mut pb = self.attrs.source.clone().unwrap();
             let oneof = pb.segments.pop().unwrap().value().ident.clone();
-            let oneof_enum = Ident::new(
-                &format!("{}_oneof_{}", oneof, &self.attrs.oneof_field),
+            let oneof_enum = Ident::new(&oneof.to_string().to_snake_case(), Span::call_site());
+            let variant = Ident::new(
+                &self.attrs.oneof_field.to_string().to_upper_camel_case(),
                 Span::call_site(),
             );
-            quote! { #pb #oneof_enum }
+            quote! { #pb #oneof_enum::#variant }
         };
         let name = &self.name;
         let pb_name = &self.attrs.source;
@@ -305,13 +297,11 @@ impl ProtobufConvertEnum {
 
         let from_pb_impl = {
             let match_arms = self.variants.iter().map(|variant| {
-                let variant_name = self.get_variant_name(variant);
-                let pb_variant = Ident::new(variant_name.as_ref(), Span::call_site());
                 let variant_name = &variant.name;
                 let field_name = &variant.field_name;
 
                 quote! {
-                    Some(#pb_oneof_enum::#pb_variant(pb)) => {
+                    Some(#pb_oneof_enum::#variant_name(pb)) => {
                         #field_name::from_pb(pb).map(#name::#variant_name)
                     }
                 }
@@ -478,7 +468,9 @@ impl ProtobufConvert {
                 where
                     S: serde::Serializer,
                 {
-                    self.to_pb().serialize(serializer)
+                    self.to_pb().write_to_bytes()
+                        .map_err(serde::ser::Error::custom)
+                        .and_then(|bytes| bytes.serialize(serializer))
                 }
             }
 
@@ -487,7 +479,9 @@ impl ProtobufConvert {
                 where
                     D: serde::Deserializer<'de>,
                 {
-                    let pb = <#name as ProtobufConvert>::ProtoStruct::deserialize(deserializer)?;
+                    let bytes = Vec::deserialize(deserializer)?;
+                    let pb = <#name as ProtobufConvert>::ProtoStruct::parse_from_bytes(&bytes)
+                        .map_err(serde::de::Error::custom)?;
                     ProtobufConvert::from_pb(pb).map_err(serde::de::Error::custom)
                 }
             }

@@ -47,7 +47,7 @@ impl ProtobufConvert for u32 {
     type ProtoStruct = Self;
 
     fn to_pb(&self) -> Self::ProtoStruct {
-        u32::from(*self)
+        *self
     }
 
     fn from_pb(pb: Self::ProtoStruct) -> Result<Self, Error> {
