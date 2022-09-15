@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use protobuf_convert::ProtobufConvert;
 use serde::{Deserialize, Serialize};
+use std::convert::TryFrom;
 
 use crate::proto::ProtobufConvert;
-use protobuf_convert::ProtobufConvert;
-use std::convert::TryFrom;
 
 mod proto;
 
@@ -76,6 +76,17 @@ struct CustomMessage {
     #[protobuf_convert(with = "custom_id_pb_convert")]
     id: Option<CustomId>,
     name: String,
+}
+
+#[derive(Debug, ProtobufConvert, Eq, PartialEq)]
+#[protobuf_convert(
+    source = "proto::EnumMessage",
+    rename(case = "snake_case"),
+    serde_pb_convert
+)]
+enum EnumMessageWithSerde {
+    Simple(Message),
+    Skip(SkipFieldsMessage),
 }
 
 mod custom_id_pb_convert {
@@ -182,10 +193,27 @@ fn from_trait() {
         id: 1,
         name: "skip".into(),
     };
-    let converted = EnumMessage::from(skip.clone());
+    let converted = EnumMessage::from(skip);
     let err = Message::try_from(converted).unwrap_err();
 
     assert!(err
         .to_string()
         .contains("Expected variant Simple, but got Skip"));
+}
+
+#[test]
+fn serde_serialize_message() {
+    let message = SkipFieldsMessage {
+        id: 1,
+        name: "SimpleMessage".into(),
+    };
+
+    let enum_message = EnumMessageWithSerde::Skip(message.clone());
+    let pb_message = enum_message.to_pb();
+    let de_message = EnumMessageWithSerde::from_pb(pb_message).unwrap();
+
+    match de_message {
+        EnumMessageWithSerde::Skip(msg) => assert_eq!(msg.id, message.id),
+        _ => panic!("Deserialized message has wrong type"),
+    }
 }
